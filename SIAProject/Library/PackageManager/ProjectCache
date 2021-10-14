@@ -5,7 +5,7 @@ m_ProjectFiles:
     m_ContentTrackingEnabled: 1
     m_ModificationDate:
       serializedVersion: 2
-      ticks: 637698212166730786
+      ticks: 637698235698329067
     m_Hash: 2988988130
   m_LockFileStatus:
     m_FilePath: C:/GameDesign/SIAProject/Packages/packages-lock.json
@@ -13,7 +13,7 @@ m_ProjectFiles:
     m_ContentTrackingEnabled: 1
     m_ModificationDate:
       serializedVersion: 2
-      ticks: 637698212166735853
+      ticks: 637698235698329067
     m_Hash: 4092248973
 m_EmbeddedPackageManifests:
   m_ManifestsStatus: {}
