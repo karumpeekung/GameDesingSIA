@@ -2,26 +2,18 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PlayerBullet : MonoBehaviour
+public class PlayerBullet : Bullet
 {
-    [SerializeField] public Rigidbody Rb;
-    [SerializeField] private int damage;
-    
-    private int speed;
 
-    public int GetDamage(int damage)
+    protected override void OnCollisionEnter(Collision other)
     {
-        return this.damage = damage;
-    }
-    public int GetSpeed(int bulletSpeed)
-    {
-        return speed = bulletSpeed;
-    }
- 
-    private void OnCollisionEnter(Collision other)
-    {
-        var enemy = other.gameObject.GetComponent<ITakeDamage>();
-        enemy?.TakeDamage(damage);
+        if (other.gameObject.tag == "Player")
+        {
+            gameObject.SetActive(false);
+            return;
+        }
+        base.OnCollisionEnter(other);
+       
         gameObject.SetActive(false);
     }
 }

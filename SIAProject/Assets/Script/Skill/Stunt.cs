@@ -7,12 +7,14 @@ public class Stunt : Skill
     //public int StuntTime;
     public override void AboutSkill(PlayerCharecter player)
     {
+        base.AboutSkill(player);
         StartCoroutine(ControlStunt(player));
 
     }
 
     protected override void EndSkill(PlayerCharecter player)
     {
+        base.EndSkill(player);
         player.GM.CheckSkillCollision.gameObject.SetActive(false);
     }
 

@@ -9,11 +9,13 @@ public class SlowTime : Skill
     private float enemySpeed;
     public override void AboutSkill(PlayerCharecter player)
     {
+        base.AboutSkill(player);
         StartCoroutine(Slow(player));
     }
 
     protected override void EndSkill(PlayerCharecter player)
     {
+        base.EndSkill(player);
         player.GM.TimeSlow(enemySpeed);
     }
     

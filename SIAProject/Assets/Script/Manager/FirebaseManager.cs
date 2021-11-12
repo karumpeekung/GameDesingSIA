@@ -1,92 +1,120 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Proyecto26;
 using FullSerializer;
 using TMPro;
+using SimpleJSON;
+using System;
+using System.Text.RegularExpressions;
 
-public class FirebaseManager : MonoBehaviour
+public class FirebaseManager : Singleton<FirebaseManager>
 {
+
     [Header("Sign IN")]
     public TMP_InputField emailSignin;
     public TMP_InputField passwordSignin;
-    public TMP_Text warningSininText;
+    public TMP_Text warningSigninText;
 
     [Header("Sign UP")]
+    public TMP_InputField usernameSignup;
     public TMP_InputField emailSignup;
     public TMP_InputField passwordSignup;
     public TMP_InputField confirmPasswordSinup;
-    public TMP_Text warningSignupText;
+
+    [Header("Warning")]
+    public TMP_Text warningUsername;
+    public TMP_Text warningValidEmail;
+    public TMP_Text warningPassword;
+    public TMP_Text warningConfirmPassword;
 
     [Header("Firebase")]
-    private string databaseURL = "https://sia-firebase-125eb-default-rtdb.asia-southeast1.firebasedatabase.app/user";
+    private static string databaseURL = "https://sia-firebase-125eb-default-rtdb.asia-southeast1.firebasedatabase.app/users";
     private string apikey = "AIzaSyA9rERnZuGm9k4gNXePzvFh_NJ4TdCFmHU";
-    private string idToken = "9ddqSj28nVB0nUOf09Qe4ArqRrTbhRruDA2ALMRd";
+    private static string _idToken ;
     private string getLocalId;
     public static fsSerializer serializer = new fsSerializer();
     public static string localId;
 
-    [Header("User Info")]
-    public int rank = 0;
-    public string username;
-    public int score = 0;
+    public string idToken { get { return _idToken; } }
 
-    private UserInfo userInfo;
-    
+    [Header("User Info")]
+    public string email;
+    public string username;
+    public int score;
+    public int round;
+
+    [Space]
+    public UISignScene uISignScene;
+
+    [Space]
+    public UserInfo userInfo;
+    public List<UserScore> userScore;
+
+    public event Action OnSetRank;
+    public event Action OnSetUserRank;
+    public event Action OnGetLocalID;
+
+    private void Awake()
+    {
+        DontDestroyOnLoad(gameObject);
+    }
+
     public void SignUpButton()
     {
-        SignUp(emailSignup.text, passwordSignup.text);
+        SignUp(usernameSignup.text,emailSignup.text, passwordSignup.text);
     }
     public void SignInButton()
     {
         SignIn(emailSignin.text, passwordSignin.text);
     }
-    private void PosttoDatabase()
+    public bool ValidateEmail(string email)
     {
-        UserInfo user = new UserInfo(rank, username, score);
-        Debug.Log($"{rank} : {username} : {score}");
-        RestClient.Put($"{databaseURL}/{localId}.json", user).Then(response =>
+        bool isValid = false;
+        Regex r = new Regex(@"^([\w\.\-]+)@([\w\-]+)((\.(\w){2,3})+)$");
+        if (r.IsMatch(email))
         {
-            Debug.Log("Put Database");
-        }).Catch(error =>
-        {
-            Debug.Log("Put Database Error");
-        });
+            isValid = true;
+        }
+        Debug.Log(isValid);
+        return isValid;
     }
-    private void RetrieveFromDatabase()
+    private void SignUp(string _username,string _email, string _password)
     {
-        RestClient.Get<UserInfo>($"{databaseURL}/{localId}.json?auth={idToken}").Then(response =>
+        if (_email != null)
         {
-            Debug.Log(" Get Retrieve From Database");
-            userInfo = response;
-        }).Catch(error =>
+            ValidateEmail(_email);
+        }
+        if (_username == "")
         {
-            Debug.Log("Error Retrieve From Database");
-        });
-    }
-    private void SignUp(string _email, string _password)
-    {
-        if(_email == "")
+            warningUsername.text = "!Username Missng";
+        }
+        else if(_email == "")
         {
-            warningSignupText.text = "Email Missing";
+            warningValidEmail.text = "!Email Missing";
         }
         else if (passwordSignup.text != confirmPasswordSinup.text)
         {
-            warningSignupText.text = "Password Doesn't Macth";
+            warningPassword.text = "!Password dosn't Match";
+            warningConfirmPassword.text = "!Password dosn't Match";
         }
         else
         {
             string userData = "{\"email\":\"" + _email + "\",\"password\":\"" + _password + "\",\"returnSecureToken\":true}";
             RestClient.Post<SignResponse>($"https://www.googleapis.com/identitytoolkit/v3/relyingparty/signupNewUser?key={apikey}", userData).Then(response =>
             {
-                Debug.Log("Create User");
-                idToken = response.idtoken;
+                string emailVerification = "{\"requestType\":\"VERIFY_EMAIL\",\"idToken\":\"" + response.idToken + "\"}";
+                RestClient.Post($"https://www.googleapis.com/identitytoolkit/v3/relyingparty/getOobConfirmationCode?key={apikey}", emailVerification);
                 localId = response.localId;
-                username = _email;
-                PosttoDatabase();
+                username = _username;
+                email = _email;
+                uISignScene._wronging.text = "Plase Checking Your Email";
+                uISignScene.OnWrongingOpen();
+                PosttoDatabase(response.idToken);
+                warningValidEmail.text = string.Empty;
+
             }).Catch(error =>
             {
-                Debug.Log("Signup Error");
+                Debug.Log(error);
             });
         }
         
@@ -96,38 +124,90 @@ public class FirebaseManager : MonoBehaviour
         string userData = "{\"email\":\"" + _email + "\",\"password\":\"" + _password + "\",\"returnSecureToken\":true}";
         RestClient.Post<SignResponse>($"https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key={apikey}", userData).Then(response =>
         {
-            idToken = response.idtoken;
-            localId = response.localId;
-            warningSininText.text = "Login Complete";
-            Debug.Log("Signin Complete");
+            string emailVerification = "{\"idToken\":\"" + response.idToken + "\"}";
+            RestClient.Post($"https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key={apikey}", emailVerification).Then(
+                emailResponse =>
+                {
+                    fsData emailVerificationData = fsJsonParser.Parse(emailResponse.Text);
+                    Debug.Log(fsJsonParser.Parse(emailResponse.Text));
+                    EmailConfirm emailConfirmationInfo = new EmailConfirm();
+                    serializer.TryDeserialize(emailVerificationData, ref emailConfirmationInfo).AssertSuccessWithoutWarnings();
+                    if (emailConfirmationInfo.users[0].emailVerified)
+                    {
+                        _idToken = response.idToken;
+                        localId = response.localId;
+                        GetUserName();
+                        warningSigninText.text = "Login Complete";
+                        uISignScene.SignInComplete();
+                    }
+                    else
+                    {
+                        uISignScene._wronging.text = "Plase Verify Your Email";
+                        uISignScene.OnWrongingOpen();
+                    }
+                });
+
         }).Catch(error =>
         {
             Debug.Log("Signin Error");
         });
     }
+    public void PosttoDatabase(string idTokenTemp = "")
+    {
+        if(idTokenTemp == "")
+        {
+            idTokenTemp = _idToken;
+        }
+        UserInfo user = new UserInfo(email,username, score , round);
+        Debug.Log($"{email} : {username} : {score} : {round}");
+        RestClient.Put<UserInfo>($"{databaseURL}/{localId}.json?auth={idTokenTemp}", user).Then(response =>
+        {
+            Debug.Log("Put Database");
+        }).Catch(error =>
+        {
+            Debug.Log("Put Database Error");
+        });
+    }
+    private void RetrieveFromDatabase()
+    {
+        RestClient.Get<UserInfo>($"{databaseURL}/{getLocalId}.json?auth={_idToken}").Then(response =>
+        {
+            userInfo.username = response.username;
+            userInfo.score = response.score;
+            userInfo.round = response.round;
+            OnSetUserRank.Invoke();
+            Debug.Log(" Get Retrieve From Database");
+        }).Catch(error =>
+        {
+            Debug.Log("Error Retrieve From Database");
+        });
+    }
     private void GetUserName()
     {
-        RestClient.Get<UserInfo>($"{databaseURL}/{localId}.json?auth={idToken}").Then(response =>
+        RestClient.Get<UserInfo>($"{databaseURL}/{localId}.json?auth={_idToken}").Then(response =>
         {
             username = response.username;
+            email = response.email;
+            score = response.score;
+            round = response.round;
+            UserSelf.getUsername = username;
+            Debug.Log("Get Username");
         }).Catch(error =>
         {
             Debug.Log("Error Get User Name");
         });
     }
-    private void GetLocalID()
+    public void GetLocalID()
     {
-        RestClient.Get($"{databaseURL}.json?auth={idToken}").Then(response =>
+        RestClient.Get($"{databaseURL}.json?auth={_idToken}").Then(response =>
         {
-            var username = emailSignin.text;
-            Debug.Log("Check GetLocalID");
+            var emailID = email;
             fsData userData = fsJsonParser.Parse(response.Text);
-            Dictionary<string, UserInfo> users = null;
-            serializer.TryDeserialize(userData, ref users);
-
-            foreach (var user in users.Values)
+            Dictionary<string, UserInfo> emails = null;
+            serializer.TryDeserialize(userData, ref emails);
+            foreach (var user in emails.Values)
             {
-                if (user.username == username)
+                if (user.email == emailID)
                 {
                     getLocalId = user.localId;
                     RetrieveFromDatabase();
@@ -140,5 +220,26 @@ public class FirebaseManager : MonoBehaviour
             Debug.Log("GetLocalID Error");
         });
 
+    }
+    public void GetData()
+    {
+        RestClient.Get($"{databaseURL}.json?auth={_idToken}").Then(response =>
+        {
+            JSONNode jsonNode = JSON.Parse(response.Text);
+
+            userScore = new List<UserScore>();
+
+            for (int i = 0; i < jsonNode.Count; i++)
+            {
+                userScore.Add(new UserScore(jsonNode[i]["username"], jsonNode[i]["score"] , jsonNode[i]["round"]));
+            }
+            GetLocalID();
+            OnSetRank.Invoke();
+            Debug.Log("Get Data");
+        }).Catch(error => 
+        {
+            Debug.Log("Get Data Error");
+
+        });
     }
 }

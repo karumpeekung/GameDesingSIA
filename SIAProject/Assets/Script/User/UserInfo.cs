@@ -4,16 +4,19 @@ using UnityEngine.UI;
 [Serializable]
 public class UserInfo 
 {
-    public int rank;
+    public string email;
     public string username;
     public int score;
+    public int round;
     public string localId;
-    public UserInfo(int rank, string username, int score)
+
+    public UserInfo(string email,string username, int score , int round)
     {
-        this.rank = rank;
+        this.email = email;
         this.username = username;
         this.score = score;
+        this.round = round;
         localId = FirebaseManager.localId;
     }
-    
+
 }
